@@ -1,226 +1,799 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ERP Pedidos</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ERP Corabastos — V4 (Estable)</title>
 <style>
-  body{font-family:Arial;background:#f4f6f9;margin:0;padding:20px;}
-  .card{background:#fff;padding:20px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.1);max-width:600px;margin:auto;}
-  input,button{width:100%;padding:10px;margin:5px 0;border-radius:6px;border:1px solid #ccc;}
-  button{background:#0a57ff;color:#fff;border:none;cursor:pointer;}
-  #items{margin-top:10px;}
+:root{--bg:#f4f6f9;--panel:#0b1220;--accent:#0a57ff;--card:#ffffff}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:#0f172a}
+header{background:#071025;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center}
+.app{display:flex;height:calc(100vh - 50px)}
+#sidebar{width:240px;background:var(--panel);color:#fff;padding:16px;display:flex;flex-direction:column;gap:8px}
+#sidebar button{background:transparent;border:0;color:#cbd5e1;text-align:left;padding:8px;border-radius:6px;cursor:pointer}
+#sidebar button:hover{background:rgba(255,255,255,0.04)}
+#sidebar button.active{background:rgba(255,255,255,0.06);color:#fff;font-weight:700}
+main{flex:1;padding:20px;overflow:auto}
+.card{background:var(--card);padding:16px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,0.06);margin-bottom:16px}
+input,select,textarea{width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid #d0d6e1}
+button.primary{background:var(--accent);color:#fff;padding:8px 12px;border:0;border-radius:6px;cursor:pointer}
+.small{font-size:13px;color:#6b7280}.hidden{display:none!important}
+.table{width:100%;border-collapse:collapse}.table th,.table td{padding:8px;border-bottom:1px solid #eef4fb;text-align:left}
+.modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);z-index:60}
+.modal .card{width:100%;max-width:420px}
+@media(max-width:900px){#sidebar{position:fixed;left:0;top:50px;bottom:0;transform:translateX(-100%);transition:transform .22s;z-index:40}#sidebar.open{transform:translateX(0)}main{padding:12px}}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;color:#0a57ff;font-weight:600;font-size:12px}
+.actions-row{display:flex;gap:8px;flex-wrap:wrap}
+.item-row{display:flex;gap:8px;align-items:center}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
-<div class="card">
-  <h2>Nuevo Pedido</h2>
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <button id="btnMenu" class="primary" style="background:transparent;border:0;color:#fff">☰</button>
+    <div style="font-size:18px;font-weight:700">ERP Corabastos</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="small" id="headerUser">Invitado</div>
+    <button id="btnLogout" class="primary hidden">Cerrar sesión</button>
+  </div>
+</header>
+<div class="app">
+  <aside id="sidebar">
+    <button data-sec="dashboard">Dashboard</button>
+    <button data-sec="fundaciones">Fundaciones</button>
+    <button data-sec="items">Items</button>
+    <button data-sec="conductores">Conductores</button>
+    <button data-sec="recibos">Pedidos</button>
+    <button data-sec="search">Buscar</button>
+    <hr style="border-color:rgba(255,255,255,0.04);">
+    <button data-sec="usuarios">Mi Cuenta</button>
+    <button data-sec="admin_users" id="btnAdminUsers">Usuarios (Admin)</button>
+    <button data-sec="auditoria">Auditoría</button>
+    <button data-sec="seguimiento">Seguimiento</button>
+    <button data-sec="roles">Gestión Roles</button>
+  </aside>
+  <main id="main">
 
-  <label>NIT</label>
-  <input id="nit" oninput="autofillPedido(this.value)" />
+    <section id="dashboard" class="card">
+      <h2>Bienvenido</h2>
+      <p class="small">Versión estable. Inicie sesión para usar el sistema.</p>
+    </section>
 
-  <label>Nombre Fundación</label>
-  <input id="nombre_fundacion" oninput="autofillPedido(this.value)" />
+    <section id="fundaciones" class="hidden">
+      <h2>Fundaciones</h2>
+      <div class="card">
+        <h3>Crear Fundación</h3>
+        <label>NIT</label><input id="f_nit" autocomplete="off">
+        <label>Nombre</label><input id="f_name">
+        <button id="btnFundCreate" class="primary" style="margin-top:10px">Crear Fundación</button>
+      </div>
 
-  <label>Punto de Envío</label>
-  <input id="punto_envio" oninput="autofillPedido(this.value)" />
+      <div class="card">
+        <h3>Añadir Punto de Envío</h3>
+        <label>Fundación</label><select id="selFund"></select>
+        <label>Barrio</label><input id="p_barrio">
+        <label>Localidad</label><input id="p_localidad">
+        <label>Ciudad</label><input id="p_ciudad">
+        <label>Teléfono 1</label><input id="p_tel1">
+        <label>Teléfono 2</label><input id="p_tel2">
+        <label>Encargada</label><input id="p_encargada">
+        <button id="btnPointCreate" class="primary" style="margin-top:10px">Agregar Punto</button>
+      </div>
 
-  <label>Items</label>
-  <div id="items"></div>
-  <button onclick="agregarItem()">Agregar Item</button>
+      <div class="card">
+        <h3>Cargar Fundaciones desde Excel</h3>
+        <input id="excel_fundaciones" type="file" accept=".xlsx,.xls">
+        <button id="btnImportFund" class="primary" style="margin-top:10px">Importar Excel</button>
+      </div>
 
-  <button onclick="guardarPedido()">Guardar Pedido</button>
-  <button onclick="duplicarPedido()">Duplicar Pedido</button>
+      <div class="card">
+        <h3>Listado</h3>
+        <input id="searchFund" placeholder="Buscar fundaciones..." style="margin-bottom:10px">
+        <div id="fundList"></div>
+      
+      </div>
+    </section>
+
+    <section id="items" class="hidden">
+      <h2>Items</h2>
+      <div class="card">
+        <label>Referencia</label><input id="item_ref">
+        <label>Nombre</label><input id="item_name">
+        <label>Descripción</label><input id="item_desc">
+        <label>Precio</label><input id="item_price" type="number">
+        <button id="btnCreateItem" class="primary" style="margin-top:10px">Agregar Item</button>
+      </div>
+
+      <div class="card">
+        <h3>Cargar Items desde Excel</h3>
+        <input id="excel_items" type="file" accept=".xlsx,.xls">
+        <button id="btnImportItems" class="primary" style="margin-top:10px">Importar Excel</button>
+      </div>
+
+      <div class="card">
+        <h3>Gestionar Embalajes</h3>
+        <input id="new_pack" placeholder="Nuevo embalaje">
+        <button id="btnAddPack" class="primary" style="margin-top:10px">Agregar</button>
+        <ul id="packList" class="small" style="padding-left:18px;margin-top:10px"></ul>
+      </div>
+
+      <div class="card">
+        <h3>Listado de Items</h3>
+        <input id="searchItems" placeholder="Buscar..." style="margin-bottom:10px">
+        <table class="table" id="itemsTable">
+          <thead>
+            <tr><th>Ref</th><th>Nombre</th><th>Descripción</th><th>Precio</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="conductores" class="hidden">
+      <h2>Conductores y Placas</h2>
+      <div class="card">
+        <label>Nombre</label><input id="drv_name">
+        <label>Documento</label><input id="drv_doc">
+        <label>Teléfono</label><input id="drv_tel">
+        <label>Empresa</label><input id="drv_cmp">
+        <button id="btnAddDriver" class="primary" style="margin-top:10px">Agregar Conductor</button>
+      </div>
+
+      <div class="card">
+        <h3>Agregar Placa</h3>
+        <label>Placa</label><input id="pl_plate">
+        <label>Tipo</label><input id="pl_type">
+        <button id="btnAddPlate" class="primary" style="margin-top:10px">Agregar</button>
+      </div>
+
+      <div class="card">
+        <h3>Conductores</h3>
+        <input id="searchDrivers" placeholder="Buscar..." style="margin-bottom:10px">
+        <ul id="driversList"></ul>
+      </div>
+
+      <div class="card">
+        <h3>Placas</h3>
+        <input id="searchPlates" placeholder="Buscar..." style="margin-bottom:10px">
+        <ul id="platesList"></ul>
+      </div>
+    </section>
+
+    <section id="search" class="hidden">
+      <h2>Buscador Global</h2>
+      <input id="globalSearch" placeholder="Buscar..." style="margin-bottom:10px">
+      <div id="globalResults"></div>
+    </section>
+
+    <section id="recibos" class="hidden">
+      <h2>Pedidos</h2>
+      <div class="card">
+        <h3 id="formTitle">Crear Pedido</h3>
+
+        <label>NIT Fundación</label>
+        <input id="pd_nit" placeholder="NIT">
+
+        <div id="pd_fund_info" class="small" style="margin-top:6px"></div>
+
+        <label>Fundación (seleccione)</label><select id="pd_fund"></select>
+        <label>Punto de Envío</label><select id="pd_point"></select>
+
+        <label>Conductor</label><select id="pd_driver"></select>
+        <label>Placa</label><select id="pd_plate"></select>
+        <label>Peaje</label><input id="pd_peaje" type="number">
+        <label>Costo de Transporte</label><input id="pd_trans" type="number">
+
+        <h3 style="margin-top:12px">Agregar Items</h3>
+        <label>Item</label>
+        <select id="pd_item_sel" style="width:100%;margin-bottom:6px"></select>
+        <label>Embalaje (opcional)</label>
+        <select id="pd_pack_sel" style="width:100%;margin-bottom:6px"></select>
+        <label>Cantidad de Embalaje</label>
+        <input id="pd_pack_qty" type="number" placeholder="Cant. Embalaje" value="1">
+        <label>Kilos (obligatorio)</label>
+        <input id="pd_kilos" type="number" placeholder="Kilos (obligatorio)">
+
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <button id="pd_add_item" class="primary">Agregar producto</button>
+          <button id="btnAddProducto" class="primary">Agregar fila manual</button>
+        </div>
+
+        <ul id="pd_items_list" style="margin-top:10px"></ul>
+
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button id="btnAddPedido" class="primary">Guardar Pedido</button>
+          <button id="btnExportPedidoCSV" class="primary">Exportar CSV</button>
+          <button id="btnExportPedidoIMG" class="primary">Exportar Imagen</button>
+          <div class="small" id="pedidoModoBadge" style="align-self:center"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Listado de Pedidos (historial)</h3>
+        <input id="searchPedidos" placeholder="Buscar..." style="margin-bottom:10px">
+        <ul id="pedidosList"></ul>
+      </div>
+    </section>
+
+    <section id="usuarios" class="hidden">
+      <h2>Mi Cuenta</h2>
+      <div class="card">
+        <label>Usuario (no editable)</label>
+        <input id="usr_username" disabled>
+        <label>Nombre completo</label><input id="usr_fullname">
+        <label>Teléfono</label><input id="usr_phone">
+        <label>Correo</label><input id="usr_email">
+        <label>Contraseña</label><input id="usr_password" type="password">
+        <button id="btnUserPassSave" class="primary" style="margin-top:10px">Guardar</button>
+      </div>
+    </section>
+
+    <section id="admin_users" class="hidden">
+      <h2>Gestión de Usuarios (Admin)</h2>
+      <div class="card">
+        <label>Nuevo Usuario</label>
+        <input id="adm_new_user" placeholder="Usuario">
+        <label>Contraseña</label>
+        <input id="adm_new_pass" type="password">
+        <label>Rol</label>
+        <select id="adm_new_role"><option value="general">General</option><option value="admin">Administrador</option><option value="lector">Lector</option></select>
+        <button id="adm_add_user" class="primary" style="margin-top:10px">Crear Usuario</button>
+      </div>
+      <div class="card">
+        <h3>Usuarios Registrados</h3>
+        <ul id="adm_user_list" class="small" style="padding-left:18px"></ul>
+      </div>
+    </section>
+
+    <section id="auditoria" class="hidden">
+      <h2>Auditoría</h2>
+      <div class="card">
+        <label>Filtrar por usuario</label>
+        <input id="auditUserFilter" placeholder="Usuario">
+        <label>Filtrar por fecha</label>
+        <input id="auditDateFilter" type="date">
+      </div>
+      <div id="auditList" class="card small"></div>
+    </section>
+
+    <section id="seguimiento" class="hidden">
+      <h2>Seguimiento</h2>
+      <div class="card">
+        <table class="table" id="segTable"><thead><tr><th>Fecha</th><th>Fundación</th><th>Barrio</th><th>Kilos</th><th>Conductor</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <section id="roles" class="hidden">
+      <h2>Roles</h2>
+      <div class="card small">Gestión de roles disponible para administrador.</div>
+    </section>
+
+  </main>
+</div>
+
+<!-- LOGIN modal (required) -->
+<div id="loginModal" class="modal hidden">
+  <div class="card">
+    <h3>Iniciar sesión</h3>
+    <label>Usuario</label><input id="login_user">
+    <label>Contraseña <small style="color:#6b7280">(<a href="#" id="togglePass">mostrar</a>)</small></label>
+    <input id="login_pass" type="password">
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+      <button id="btnLogin" class="primary">Ingresar</button>
+      <div id="loginStatus" class="small" style="color:#6b7280"></div>
+    </div>
+  </div>
 </div>
 
 <script>
-// === PREFIJO Y CONSECUTIVO ===
-const PREFIJO_CUSTOM = "PED";
-const PREFIJO_ANIO = new Date().getFullYear();
+document.addEventListener('DOMContentLoaded',function(){
+  const $ = id => document.getElementById(id);
+  // state init (single storage point)
+  let state = JSON.parse(localStorage.getItem('erp_state')||'null') || {};
+  state.users = Array.isArray(state.users)? state.users : [
+    {username:'admin',pass:'3134630773',role:'admin',fullname:'Administrador'},
+    {username:'jgarnica',pass:'12345',role:'general',fullname:''},
+    {username:'jnonato',pass:'12345',role:'general',fullname:''},
+    {username:'salidas',pass:'12345',role:'general',fullname:''},
+    {username:'mcarabali',pass:'12345',role:'general',fullname:''}
+  ];
+  state.currentUser = state.currentUser || null;
+  state.foundations = Array.isArray(state.foundations)? state.foundations : [];
+  state.items = Array.isArray(state.items)? state.items : [];
+  state.packs = Array.isArray(state.packs)? state.packs : ['Atado','Bulto','Canastilla','Caja','Unidad'];
+  state.drivers = Array.isArray(state.drivers)? state.drivers : [];
+  state.plates = Array.isArray(state.plates)? state.plates : [];
+  state.pedidos = Array.isArray(state.pedidos)? state.pedidos : [];
+  state.audit = Array.isArray(state.audit)? state.audit : [];
 
-function getUltimoConsecutivo(){
-  const data = JSON.parse(localStorage.getItem("consecutivo_pedido")||"{}");
-  return data.numero ? parseInt(data.numero) : 0;
-}
+  function save(){ localStorage.setItem('erp_state', JSON.stringify(state)); }
 
-function setUltimoConsecutivo(num){
-  localStorage.setItem("consecutivo_pedido",JSON.stringify({anio:PREFIJO_ANIO,numero:num}));
-}
+  function registrarAccion(accion,detalle){ const rec={fecha:new Date().toISOString(),usuario: state.currentUser?state.currentUser.username:'-',accion,detalle}; state.audit.unshift(rec); save(); renderAudit(); }
 
-function verificarReset(){
-  const data = JSON.parse(localStorage.getItem("consecutivo_pedido")||"{}");
-  if(!data.anio || data.anio!==PREFIJO_ANIO){ setUltimoConsecutivo(0); }
-}
+  // --- NUEVAS VARIABLES GLOBALES PARA PEDIDOS ---
+  let modoPedido = 'crear';
+  let pedidoEditandoId = null; // id (Date.now) del pedido cuando estamos editando
+  let currentPedidoItems = [];  // items mostrados en el formulario (editable)
+  const PREFIJO_CUSTOM = "PED";
 
-function generarConsecutivo(){
-  verificarReset();
-  let n = getUltimoConsecutivo()+1;
-  setUltimoConsecutivo(n);
-  return `${PREFIJO_CUSTOM}-${PREFIJO_ANIO}-${String(n).padStart(4,'0')}`;
-}
-
-// === FUNDACIONES HARDCODE ===
-let FUNDACIONES=[
- {nit:"900123456",nombre:"Fundación Sol",sucursal:"Bogotá"},
- {nit:"800987654",nombre:"Fundación Luna",sucursal:"Medellín"}
-];
-
-// Buscar por NIT o coincidencia en nombre o sucursal
-function buscarFundacion(v){
-  v = String(v || '').toLowerCase();
-  return FUNDACIONES.find(f=> 
-    String(f.nit).toLowerCase()===v ||
-    String(f.nombre).toLowerCase().includes(v) ||
-    String(f.sucursal).toLowerCase().includes(v)
-  );
-}
-
-function buscarSucursal(v){
-  v = String(v || '').toLowerCase();
-  return FUNDACIONES.find(f=> 
-    String(f.sucursal).toLowerCase()===v ||
-    String(f.nombre).toLowerCase().includes(v) ||
-    String(f.nit).toLowerCase().includes(v)
-  );
-}
-
-function autofillPedido(v){
-  const f = buscarFundacion(v);
-  if(f){
-    // use element references safely
-    const nitEl = document.getElementById('nit');
-    const nombreEl = document.getElementById('nombre_fundacion');
-    const puntoEl = document.getElementById('punto_envio');
-    if(nitEl) nitEl.value = f.nit;
-    if(nombreEl) nombreEl.value = f.nombre;
-    if(puntoEl) puntoEl.value = f.sucursal;
-  }
-}
-
-// === ITEMS ===
-function agregarItem(){
-  const container = document.getElementById('items');
-  if(!container) return;
-  const div=document.createElement('div');
-  div.style.display = 'flex';
-  div.style.gap = '8px';
-  div.innerHTML=`<input class='prod' placeholder='Producto' oninput="autocompleteProducto(this)" style='flex:1' /><input class='cant' placeholder='Cantidad' oninput="autocompleteCantidad(this)" style='width:120px'/>`;
-  container.appendChild(div);
-}
-
-// === AUTOCOMPLETAR PRODUCTOS ===
-const PRODUCTOS = [
-  "Leche en polvo",
-  "Arroz",
-  "Frijol",
-  "Aceite",
-  "Atún",
-  "Cereal",
-  "Pañales",
-  "Jabón líquido",
-  "Detergente",
-  "Toallas higiénicas"
-];
-
-function autocompleteProducto(input){
-  const v = String(input.value || '').toLowerCase();
-  const match = PRODUCTOS.find(p => p.toLowerCase().includes(v));
-  input.style.background = match ? "#e6f0ff" : "white";
-}
-
-// === AUTOCOMPLETAR CANTIDADES ===
-const CANTIDADES = ["Unidad","Caja","Bolsa","Paquete","Docena","Saco","Botella","Galón"];
-function autocompleteCantidad(input){
-  const v = String(input.value || '').toLowerCase();
-  const match = CANTIDADES.find(c => c.toLowerCase().includes(v));
-  input.style.background = match ? "#e6f0ff" : "white";
-}
-
-// === PEDIDOS LS ===
-function guardarPedido(){
-  const nEl = document.getElementById('nit');
-  const nomEl = document.getElementById('nombre_fundacion');
-  const sucEl = document.getElementById('punto_envio');
-  const n = nEl ? nEl.value.trim() : '';
-  const nom = nomEl ? nomEl.value.trim() : '';
-  const suc = sucEl ? sucEl.value.trim() : '';
-
-  // 🚫 no permitir fundación duplicada por NIT
-  const existe = FUNDACIONES.some(f => String(f.nit) === String(n));
-  if(!existe && n){
-    FUNDACIONES.push({nit:n, nombre:nom, sucursal:suc});
+  function obtenerConsecutivoPedidoPorAnio(){
+    const anioActual = new Date().getFullYear().toString();
+    const key = 'consecutivo_pedido';
+    const data = JSON.parse(localStorage.getItem(key) || '{}');
+    let numero = 0;
+    if(!data.anio || data.anio !== anioActual){
+      numero = 1;
+    } else {
+      numero = parseInt(data.numero || 0) + 1;
+    }
+    localStorage.setItem(key, JSON.stringify({ anio: anioActual, numero: numero }));
+    return `${PREFIJO_CUSTOM}-${anioActual}-${String(numero).padStart(4,'0')}`;
   }
 
-  const container = document.getElementById('items');
-  const itemsArr = container ? [...container.querySelectorAll('div')].map(d=>{
-    const inputs = d.querySelectorAll('input');
-    const p = inputs[0] ? inputs[0].value : '';
-    const c = inputs[1] ? inputs[1].value : '';
-    return {producto:p,cantidad:c};
-  }) : [];
+  // UI helpers
+  function showSection(id){ document.querySelectorAll('main section').forEach(s=>s.classList.add('hidden')); const el = $(id); if(el) el.classList.remove('hidden'); document.querySelectorAll('#sidebar button').forEach(b=>b.classList.remove('active')); const btn=document.querySelector('#sidebar button[data-sec="'+id+'"]'); if(btn) btn.classList.add('active'); window.scrollTo(0,0); }
+  document.querySelectorAll('#sidebar button').forEach(b=> b.addEventListener('click', ()=> { showSection(b.dataset.sec); document.getElementById('sidebar').classList.remove('open'); }));
+  if($('btnMenu')) $('btnMenu').addEventListener('click', ()=> document.getElementById('sidebar').classList.toggle('open'));
 
-  const pedido={
-    id:generarConsecutivo(),
-    nit:n,
-    nombre:nom,
-    envio:suc,
-    items: itemsArr
-  };
-  let p = JSON.parse(localStorage.getItem('pedidos')||'[]');
-  p.push(pedido);
-  localStorage.setItem('pedidos',JSON.stringify(p));
-  alert(`Pedido guardado: ${pedido.id}`);
-}
-
-let pedidoDuplicado=null;
-
-function duplicarPedido(){
-  let p = JSON.parse(localStorage.getItem('pedidos')||'[]');
-  if(p.length===0){alert('No hay pedidos');return;}
-  pedidoDuplicado = p[p.length-1];
-  const nitEl = document.getElementById('nit');
-  const nomEl = document.getElementById('nombre_fundacion');
-  const puntoEl = document.getElementById('punto_envio');
-  if(nitEl) nitEl.value = '';
-  if(nomEl) nomEl.value = '';
-  if(puntoEl) puntoEl.value = '';
-  const container = document.getElementById('items');
-  if(container) container.innerHTML = '';
-  (pedidoDuplicado.items || []).forEach(i=>{
-    const div=document.createElement('div');
-    div.style.display = 'flex';
-    div.style.gap = '8px';
-    const prod = document.createElement('input'); prod.value = i.producto || ''; prod.placeholder='Producto'; prod.className='prod'; prod.oninput = function(){ autocompleteProducto(this); };
-    const cant = document.createElement('input'); cant.value = i.cantidad || ''; cant.placeholder='Cantidad'; cant.className='cant'; cant.oninput = function(){ autocompleteCantidad(this); };
-    prod.style.flex='1'; cant.style.width='120px';
-    div.appendChild(prod); div.appendChild(cant);
-    container.appendChild(div);
+  // Cerrar sidebar al hacer clic fuera
+  document.addEventListener('click', (e)=>{
+    const sb = document.getElementById('sidebar');
+    const btn = document.getElementById('btnMenu');
+    if(sb && sb.classList.contains('open') && !sb.contains(e.target) && e.target!==btn){
+      sb.classList.remove('open');
+    }
   });
-  alert('Pedido duplicado, modifique datos y guarde');
-}
 
+  // Login modal behaviors
+  function openLogin(){ const lm = $('loginModal'); if(lm) lm.classList.remove('hidden'); }
+  function closeLogin(){ const lm = $('loginModal'); if(lm) lm.classList.add('hidden'); }
 
-// === AUTOCOMPLETAR CREAR SUCURSAL DESDE NIT ===
-function autoCompletarCrearSucursal() {
-  const nit = document.getElementById("f_nit").value.trim();
-  if (!nit) {
-    const fn = document.getElementById("f_name");
-    if(fn) fn.value = "";
-    return;
+  // toggle password
+  if($('togglePass')) $('togglePass').addEventListener('click', function(ev){ ev.preventDefault(); const p=$('login_pass'); if(!p) return; p.type = p.type === 'password' ? 'text' : 'password'; this.textContent = p.type==='password'? 'mostrar':'ocultar'; });
+
+  // require login at start
+  function setCurrentUser(user){ state.currentUser = user; save(); if($('headerUser')) $('headerUser').innerText = user.username + ' ('+user.role+')'; if($('btnLogout')) $('btnLogout').classList.remove('hidden'); if(user.role !== 'admin' && $('btnAdminUsers')) { $('btnAdminUsers').style.display = 'none'; } else if($('btnAdminUsers')) { $('btnAdminUsers').style.display = 'block'; } closeLogin(); renderAll(); showSection('dashboard'); }
+
+  // login handler
+  if($('btnLogin')) $('btnLogin').addEventListener('click', function(){ const u = $('login_user').value.trim(); const p = $('login_pass').value.trim(); if(!u || !p){ alert('Usuario y clave requeridos'); return; } if($('loginStatus')) $('loginStatus').innerText = 'Iniciando...'; setTimeout(()=>{ const found = state.users.find(x=>x.username===u && x.pass===p); if(!found){ alert('Usuario o clave incorrectos'); if($('loginStatus')) $('loginStatus').innerText=''; return; } setCurrentUser(found); registrarAccion('login',{user:u}); if($('login_user')) $('login_user').value=''; if($('login_pass')) $('login_pass').value=''; if($('loginStatus')) $('loginStatus').innerText=''; },600); });
+
+  // logout
+  if($('btnLogout')) $('btnLogout').addEventListener('click', function(){ if(confirm('Cerrar sesión?')){ state.currentUser = null; save(); if($('headerUser')) $('headerUser').innerText = 'Invitado'; if($('btnLogout')) $('btnLogout').classList.add('hidden'); openLogin(); } });
+
+  if(!state.currentUser){ openLogin(); } else { setCurrentUser(state.currentUser); }
+
+  // Fillers and renderers
+  function fillFundSelects(){
+    const sel = $('selFund');
+    if(sel){
+      sel.innerHTML='';
+      state.foundations.forEach((f,i)=> sel.appendChild(new Option(f.name+' ('+f.nit+')', i)));
+    }
+    const pf = $('pd_fund');
+    if(pf){
+      pf.innerHTML='';
+      state.foundations.forEach((f,i)=> pf.appendChild(new Option(f.name, i)));
+      fillPedidoPoints();
+    }
   }
-  const fundaciones = JSON.parse(localStorage.getItem("Fundaciones")||"[]");
-  const fund = fundaciones.find(f => String(f.nit).toLowerCase() === nit.toLowerCase());
-  if (fund) {
-    const fn = document.getElementById("f_name");
-    if(fn) fn.value = fund.nombre || fund.name || "";
-  }
-}
 
-document.addEventListener("DOMContentLoaded",()=>{
-  const el = document.getElementById("f_nit");
-  if(el) el.addEventListener("input", autoCompletarCrearSucursal);
+  function fillPedidoPoints(){
+    const sel=$('pd_point'); if(!sel) return;
+    sel.innerHTML='';
+    const pf = $('pd_fund');
+    const fi = pf ? Number(pf.value||0) : 0;
+    const f = state.foundations[fi];
+    if(f && Array.isArray(f.points)){
+      f.points.forEach((p,i)=> sel.appendChild(new Option(p.barrio+' ('+p.localidad+' - '+p.ciudad+')', i)));
+      // autoselect if only 1
+      if(f.points.length === 1){
+        sel.value = 0;
+      }
+    }
+  }
+
+  function fillItemSelect(){ const sel=$('pd_item_sel'); if(!sel) return; sel.innerHTML=''; state.items.forEach((it,i)=> sel.appendChild(new Option(it.name+' - $'+it.price, i))); }
+  function fillPackSelect(){ const sel=$('pd_pack_sel'); if(!sel) return; sel.innerHTML=''; sel.appendChild(new Option('','')); state.packs.forEach(p=> sel.appendChild(new Option(p,p))); }
+  function fillDriverPlate(){ const sd=$('pd_driver'); const sp=$('pd_plate'); if(sd){ sd.innerHTML=''; state.drivers.forEach((d,i)=> sd.appendChild(new Option(d.name,i))); } if(sp){ sp.innerHTML=''; state.plates.forEach((p,i)=> sp.appendChild(new Option(p.plate,i))); } }
+
+  function renderFund(){ const box=$('fundList'); if(!box) return; box.innerHTML=''; state.foundations.forEach((f,idx)=>{ const d=document.createElement('div'); d.className='card'; d.style.marginBottom='8px'; let html = '<strong>'+f.name+'</strong><div class="small">NIT: '+f.nit+'</div>'; if(Array.isArray(f.points) && f.points.length){ html += '<div style="margin-top:8px">'; f.points.forEach((p)=>{ html += '<div class="small">'+p.barrio+' — '+p.localidad+' — '+p.ciudad+' — '+(p.encargada||'')+'</div>'; }); html += '</div>'; } else { html += '<div class="small">Sin puntos</div>'; } d.innerHTML = html; box.appendChild(d); }); }
+
+  function renderItems(){ const tbody = $('itemsTable') ? $('itemsTable').querySelector('tbody') : null; if(!tbody) return; tbody.innerHTML=''; state.items.forEach((it,i)=>{ const tr=document.createElement('tr'); tr.innerHTML = '<td>'+it.ref+'</td><td>'+it.name+'</td><td>'+(it.desc||'')+'</td><td>$'+(it.price||0)+'</td><td><button data-i="'+i+'" class="delItem">Eliminar</button></td>'; tbody.appendChild(tr); }); document.querySelectorAll('.delItem').forEach(btn=> btn.addEventListener('click', function(){ if(!state.currentUser || state.currentUser.role!=='admin'){ return alert('Solo admin puede eliminar'); } const idx=Number(this.dataset.i); state.items.splice(idx,1); save(); renderItems(); registrarAccion('eliminar_item',{index:idx}); })); }
+
+  function renderPacks(){ const ul=$('packList'); if(!ul) return; ul.innerHTML=''; state.packs.forEach((p,i)=>{ const li=document.createElement('li'); li.textContent = p + ' '; const del=document.createElement('button'); del.textContent='Eliminar'; del.style.marginLeft='8px'; del.addEventListener('click', ()=>{ if(!state.currentUser || state.currentUser.role!=='admin') return alert('Solo admin'); state.packs.splice(i,1); save(); renderPacks(); }); li.appendChild(del); ul.appendChild(li); }); }
+
+  function renderDrivers(){ const ul=$('driversList'); if(!ul) return; ul.innerHTML=''; state.drivers.forEach((d,i)=>{ const li=document.createElement('li'); li.textContent = d.name + ' — ' + (d.document||''); ul.appendChild(li); }); }
+  function renderPlates(){ const ul=$('platesList'); if(!ul) return; ul.innerHTML=''; state.plates.forEach((p,i)=>{ const li=document.createElement('li'); li.textContent = p.plate + ' ('+(p.type||'')+')'; ul.appendChild(li); }); }
+
+  function refreshPdItems(){ const ul=$('pd_items_list'); if(!ul) return; ul.innerHTML=''; currentPedidoItems.forEach((it,idx)=>{ const li=document.createElement('li'); li.style.marginBottom='6px'; li.innerHTML = `<div style="display:flex;gap:8px;align-items:center">
+      <input class="edit_codigo" placeholder="Código" value="${it.codigo||''}" style="width:110px" />
+      <input class="edit_nombre" placeholder="Nombre" value="${it.name||''}" style="flex:1" />
+      <input class="edit_qty" type="number" min="1" value="${it.qty||1}" style="width:80px" />
+      <input class="edit_kgs" type="number" min="0" value="${it.kgs||0}" style="width:80px" />
+      <input class="edit_price" type="number" min="0" value="${it.price||0}" style="width:100px" />
+      <button class="eliminar_item small">Eliminar</button>
+    </div>`; 
+    const btnDel = li.querySelector('.eliminar_item');
+    btnDel.addEventListener('click', ()=>{ currentPedidoItems.splice(idx,1); refreshPdItems(); });
+    li.querySelector('.edit_codigo').addEventListener('input', (e)=> currentPedidoItems[idx].codigo = e.target.value);
+    li.querySelector('.edit_nombre').addEventListener('input', (e)=> currentPedidoItems[idx].name = e.target.value);
+    li.querySelector('.edit_qty').addEventListener('input', (e)=> currentPedidoItems[idx].qty = Number(e.target.value) || 1);
+    li.querySelector('.edit_kgs').addEventListener('input', (e)=> currentPedidoItems[idx].kgs = Number(e.target.value) || 0);
+    li.querySelector('.edit_price').addEventListener('input', (e)=> currentPedidoItems[idx].price = Number(e.target.value) || 0);
+    ul.appendChild(li);
+  }); }
+
+  function renderPedidos(){ const ul=$('pedidosList'); if(!ul) return; ul.innerHTML=''; const q=$('searchPedidos')?$('searchPedidos').value.trim().toLowerCase():''; state.pedidos.forEach((p,idx)=>{ if(q && !(p.id+''+p.numero+''+p.foundation+''+(p.foundationNIT||'')).toLowerCase().includes(q)) return; const li=document.createElement('li'); li.style.marginBottom='8px'; const created = new Date(p.createdAt).toLocaleString(); li.innerHTML = '<div style=\"display:flex;justify-content:space-between;align-items:center\"><div><strong>'+ (p.numero || '') + ' — ' + (p.id) + '</strong> — '+p.foundation+' — $'+(p.total||0) + '</div><div class=\"small\">'+created+'</div></div>'; const info = document.createElement('div'); info.className='small'; info.style.marginTop='6px'; info.innerHTML = 'Llegada: '+(p.horaLlegada||'—')+' | Salida: '+(p.horaSalida||'—')+' | Conductor: '+(p.driver?.name||'—'); li.appendChild(info);
+
+    const row = document.createElement('div'); row.className='actions-row'; row.style.marginTop='8px';
+
+    const btnEdit = document.createElement('button'); btnEdit.textContent='Editar'; btnEdit.className='primary'; btnEdit.addEventListener('click', ()=>{ abrirEditarPedido(p.id); });
+    const btnDup = document.createElement('button'); btnDup.textContent='Duplicar'; btnDup.className='primary'; btnDup.addEventListener('click', ()=>{ abrirDuplicarPedido(p.id); });
+    const btnDel = document.createElement('button'); btnDel.textContent='Eliminar'; btnDel.className='primary'; btnDel.addEventListener('click', ()=>{ if(!confirm('Eliminar pedido?')) return; state.pedidos = state.pedidos.filter(x=> x.id !== p.id); save(); renderPedidos(); registrarAccion('eliminar_pedido',{id:p.id}); });
+    const btnExport = document.createElement('button'); btnExport.textContent='Exportar'; btnExport.className='primary'; btnExport.addEventListener('click', ()=> exportPedidoAsImageAndPDF(p));
+
+    row.appendChild(btnEdit); row.appendChild(btnDup); row.appendChild(btnDel); row.appendChild(btnExport);
+    li.appendChild(row);
+
+    ul.appendChild(li);
+  }); }
+
+  // Build export (Option B): generate image/pdf from pedido data without visible template
+  function exportPedidoAsImageAndPDF(pedido){
+    const wrap = document.createElement('div');
+    wrap.style.width = '1123px';
+    wrap.style.minHeight = '794px';
+    wrap.style.background = '#fff';
+    wrap.style.padding = '28px';
+    wrap.style.boxSizing = 'border-box';
+    wrap.style.fontFamily = 'Inter, Arial, sans-serif';
+    wrap.style.color = '#0f172a';
+
+    const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between'; header.style.alignItems='center';
+    const left = document.createElement('div'); left.innerHTML = '<h2 style="margin:0">Pedido '+pedido.numero+'</h2><div class="small">Creado: '+new Date(pedido.createdAt).toLocaleString()+'</div>';
+    header.appendChild(left);
+    wrap.appendChild(header);
+
+    const info = document.createElement('div'); info.style.display='grid'; info.style.gridTemplateColumns='1fr 1fr'; info.style.gap='8px'; info.style.marginTop='12px';
+    info.innerHTML = '<div><b>Fundación:</b> '+(pedido.foundation||'')+'<br><b>NIT:</b> '+(pedido.foundationNIT||'')+'</div>'+
+                     '<div><b>Punto / Dirección:</b> '+(pedido.point? (pedido.point.barrio + ' — '+(pedido.point.localidad||'')+' — '+(pedido.point.ciudad||'')) : '')+'<br><b>Contactos:</b> '+((pedido.point && (pedido.point.tel1||pedido.point.tel2))? (pedido.point.tel1||'') + ' ' + (pedido.point.tel2||'') : '')+'<br><b>Encargada:</b> '+(pedido.point?.encargada||'')+'</div>';
+    wrap.appendChild(info);
+
+    const transport = document.createElement('div'); transport.style.marginTop='12px'; transport.innerHTML = '<b>Conductor:</b> '+(pedido.driver?.name||'--')+' &nbsp; <b>Placa:</b> '+(pedido.driver? (pedido.driver.plate || (pedido.plate? pedido.plate.plate:'')) : (pedido.plate? pedido.plate.plate:''))+'<br><b>Peaje:</b> $'+(pedido.peaje||0)+' &nbsp; <b>Transporte:</b> $'+(pedido.trans||0);
+    wrap.appendChild(transport);
+
+    const tbl = document.createElement('table'); tbl.style.width='100%'; tbl.style.borderCollapse='collapse'; tbl.style.marginTop='12px';
+    const thead = document.createElement('thead'); thead.innerHTML = '<tr><th style="border:1px solid #ddd;padding:6px">Item</th><th style="border:1px solid #ddd;padding:6px">Embalaje</th><th style="border:1px solid #ddd;padding:6px">Cantidad</th><th style="border:1px solid #ddd;padding:6px">Kilos</th><th style="border:1px solid #ddd;padding:6px">Precio</th></tr>';
+    tbl.appendChild(thead);
+    const tb = document.createElement('tbody');
+    (pedido.items||[]).forEach(it=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td style="border:1px solid #ddd;padding:6px">'+(it.name||'')+'</td>'+
+                     '<td style="border:1px solid #ddd;padding:6px">'+(it.pack||'')+'</td>'+
+                     '<td style="border:1px solid #ddd;padding:6px;text-align:right">'+(it.qty||1)+'</td>'+
+                     '<td style="border:1px solid #ddd;padding:6px;text-align:right">'+(it.kgs||0)+'</td>'+
+                     '<td style="border:1px solid #ddd;padding:6px;text-align:right">$'+(it.price||0)+'</td>';
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    wrap.appendChild(tbl);
+
+    const sumDiv = document.createElement('div'); sumDiv.style.marginTop='12px'; sumDiv.style.textAlign='right'; const subtotal = (pedido.items||[]).reduce((s,it)=>s + ((it.price||0)*(it.qty||1)),0); sumDiv.innerHTML = '<div><b>Subtotal:</b> $'+subtotal+'</div><div><b>Peaje:</b> $'+(pedido.peaje||0)+'</div><div><b>Transporte:</b> $'+(pedido.trans||0)+'</div><div style="font-size:18px;margin-top:6px"><b>Total:</b> $'+(pedido.total||0)+'</div>';
+    wrap.appendChild(sumDiv);
+
+    document.body.appendChild(wrap);
+    wrap.style.position='fixed'; wrap.style.left='200%';
+
+    html2canvas(wrap, {scale:2}).then(canvas=>{
+      const link = document.createElement('a'); link.download = (pedido.numero || pedido.id) + '.png'; link.href = canvas.toDataURL('image/png'); link.click();
+      const dataUrl = canvas.toDataURL('image/png'); const win = window.open(''); if(win){ win.document.write('<html><head><title>'+pedido.numero+'</title></head><body style="margin:0"><img src="'+dataUrl+'" style="width:100%"></body></html>'); win.document.close(); }
+      setTimeout(()=>{ document.body.removeChild(wrap); },500);
+      registrarAccion('export_pedido_image',{id:pedido.id});
+    }).catch(err=>{ alert('Error al generar imagen: '+err); document.body.removeChild(wrap); });
+  }
+
+  function renderAudit(){ const box=$('auditList'); if(!box) return; box.innerHTML=''; const uf=$('auditUserFilter')?$('auditUserFilter').value.trim().toLowerCase():''; const df=$('auditDateFilter')?$('auditDateFilter').value:''; state.audit.forEach(a=>{ const dstr=new Date(a.fecha).toISOString().slice(0,10); if(uf && !a.usuario.toLowerCase().includes(uf)) return; if(df && dstr!==df) return; const d=document.createElement('div'); d.style.marginBottom='8px'; d.innerHTML='<b>['+new Date(a.fecha).toLocaleString()+'] '+a.usuario+'</b> — '+a.accion+' <div class="small">'+JSON.stringify(a.detalle)+'</div>'; box.appendChild(d); }); }
+  if($('auditUserFilter')) $('auditUserFilter').addEventListener('input',renderAudit);
+  if($('auditDateFilter')) $('auditDateFilter').addEventListener('change',renderAudit);
+
+  // Fillers
+  fillFundSelects(); fillItemSelect(); fillPackSelect(); fillDriverPlate(); renderFund(); renderItems(); renderPacks(); renderDrivers(); renderPlates(); renderPedidos(); renderAudit();
+
+  // Import Fundaciones Excel
+  if($('btnImportFund')) $('btnImportFund').addEventListener('click', ()=>{
+    const file = $('excel_fundaciones').files[0];
+    if(!file) return alert('Seleccione un archivo Excel.');
+    const reader = new FileReader();
+    reader.onload = e => {
+      try{
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data,{type:'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet,{header:1});
+        rows.forEach((r,i)=>{
+          if(i===0) return;
+          const nit = String(r[0]||'').trim();
+          const name = String(r[1]||'').trim();
+          if(!nit||!name) return;
+          if(!state.foundations.some(f=>String(f.nit)===nit || String(f.name).toLowerCase()===name.toLowerCase())){
+            state.foundations.push({nit,name,points:[]});
+          }
+        });
+        save(); fillFundSelects(); renderFund(); registrarAccion('importar_fund_excel',{cant:rows.length});
+        alert('Fundaciones importadas.');
+      }catch(err){ alert('Error importando: '+err); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  // Import Items Excel
+  if($('btnImportItems')) $('btnImportItems').addEventListener('click', ()=>{
+    const file = $('excel_items').files[0];
+    if(!file) return alert('Seleccione un archivo Excel.');
+    const reader = new FileReader();
+    reader.onload = e => {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data,{type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet,{header:1});
+      rows.forEach((r,i)=>{
+        if(i===0) return;
+        const ref = String(r[0]||'').trim();
+        const name = String(r[1]||'').trim();
+        const price = Number(r[2]||0);
+        const desc = String(r[3]||'').trim();
+        if(!ref||!name) return;
+        if(!state.items.some(it=>it.ref===ref)){
+          state.items.push({ref,name,desc,price});
+        }
+      });
+      save(); renderItems(); fillItemSelect(); registrarAccion('importar_items_excel',{cant:rows.length});
+      alert('Items importados.');
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  // Handlers
+  if($('btnFundCreate')) $('btnFundCreate').addEventListener('click', ()=>{ 
+    if(!state.currentUser) return alert('Inicie sesión'); 
+    const nitEl = $('f_nit'), nameEl = $('f_name');
+    const nit = nitEl ? nitEl.value.trim() : '';
+    const name = nameEl ? nameEl.value.trim() : '';
+    if(!nit||!name) return alert('Complete NIT y Nombre');
+
+    // block duplicates by NIT or name (case insensitive)
+    const dup = state.foundations.some(f=> String(f.nit) === nit || (String(f.name||'').toLowerCase() === name.toLowerCase()));
+    if(dup) return alert('Ya existe una fundación con ese NIT o NOMBRE.');
+
+    state.foundations.push({nit,name,points:[]});
+    save(); fillFundSelects(); renderFund(); registrarAccion('crear_fundacion',{nit,name});
+    if(nitEl) nitEl.value=''; if(nameEl) nameEl.value='';
+  });
+
+  // auto-complete name when typing NIT in create fund form (safe)
+  function autoCompletarNombreFundacionPorNIT(){
+    const nitEl = $('f_nit'); const nameEl = $('f_name');
+    if(!nitEl || !nameEl) return;
+    const nitIngresado = nitEl.value.trim();
+    if(!nitIngresado){ /* don't erase if user typed */ return; }
+    const found = state.foundations.find(ff => String(ff.nit) === nitIngresado);
+    if(found){
+      nameEl.value = found.name || found.nombre || '';
+    }
+  }
+  if($('f_nit')) $('f_nit').addEventListener('input', autoCompletarNombreFundacionPorNIT);
+
+  if($('btnPointCreate')) $('btnPointCreate').addEventListener('click', ()=>{ 
+    if(!state.currentUser) return alert('Inicie sesión'); 
+    const sel = $('selFund'); const fi = sel? Number(sel.value): -1;
+    const f = state.foundations[fi];
+    if(!f) return alert('Seleccione fundación'); 
+    const barrio = ($('p_barrio')?$('p_barrio').value.trim():''); 
+    const localidad = ($('p_localidad')?$('p_localidad').value.trim():''); 
+    const ciudad = ($('p_ciudad')?$('p_ciudad').value.trim():''); 
+    const tel1 = ($('p_tel1')?$('p_tel1').value.trim():''); 
+    const tel2 = ($('p_tel2')?$('p_tel2').value.trim():''); 
+    const encargada = ($('p_encargada')?$('p_encargada').value.trim():'');
+    if(!barrio || !ciudad) return alert('Barrio y Ciudad requeridos');
+
+    // block duplicate points by barrio+ciudad for same foundation (case-insensitive)
+    f.points = f.points || [];
+    const dupPoint = f.points.some(p=> (String(p.barrio||'').toLowerCase()===barrio.toLowerCase()) && (String(p.ciudad||'').toLowerCase()===ciudad.toLowerCase()));
+    if(dupPoint) return alert('Ya existe un punto con el mismo barrio y ciudad para esta fundación.');
+
+    const p = {barrio,localidad,ciudad,tel1,tel2,encargada};
+    f.points.push(p);
+    save(); renderFund(); fillFundSelects(); registrarAccion('crear_punto',{fund:f.name,barrio:p.barrio});
+    if($('p_barrio')) $('p_barrio').value=''; if($('p_localidad')) $('p_localidad').value=''; if($('p_ciudad')) $('p_ciudad').value='';
+  });
+
+  if($('btnCreateItem')) $('btnCreateItem').addEventListener('click', ()=>{ if(!state.currentUser) return alert('Inicie sesión'); const ref=$('item_ref').value.trim(); const name=$('item_name').value.trim(); if(!name) return alert('Nombre requerido'); const desc=$('item_desc').value.trim(); const price=Number($('item_price').value)||0; state.items.push({ref,name,desc,price}); save(); renderItems(); fillItemSelect(); registrarAccion('crear_item',{name}); if($('item_ref')) $('item_ref').value=''; if($('item_name')) $('item_name').value=''; if($('item_desc')) $('item_desc').value=''; if($('item_price')) $('item_price').value=''; });
+
+  if($('btnAddPack')) $('btnAddPack').addEventListener('click', ()=>{ if(!state.currentUser) return alert('Inicie sesión'); const v=$('new_pack').value.trim(); if(!v) return alert('Ingrese nombre'); state.packs.push(v); save(); renderPacks(); if($('new_pack')) $('new_pack').value=''; registrarAccion('crear_embalaje',{pack:v}); });
+
+  if($('btnAddDriver')) $('btnAddDriver').addEventListener('click', ()=>{ if(!state.currentUser) return alert('Inicie sesión'); const d={name:$('drv_name').value.trim(),document:$('drv_doc').value.trim(),phone:$('drv_tel').value.trim(),company:$('drv_cmp').value.trim()}; if(!d.name) return alert('Nombre requerido'); state.drivers.push(d); save(); renderDrivers(); fillDriverPlate(); registrarAccion('crear_conductor',d); if($('drv_name')) $('drv_name').value=''; if($('drv_doc')) $('drv_doc').value=''; if($('drv_tel')) $('drv_tel').value=''; if($('drv_cmp')) $('drv_cmp').value=''; });
+
+  if($('btnAddPlate')) $('btnAddPlate').addEventListener('click', ()=>{ if(!state.currentUser) return alert('Inicie sesión'); const p={plate:$('pl_plate').value.trim(),type:$('pl_type').value.trim()}; if(!p.plate) return alert('Placa requerida'); state.plates.push(p); save(); renderPlates(); fillDriverPlate(); registrarAccion('crear_placa',p); if($('pl_plate')) $('pl_plate').value=''; if($('pl_type')) $('pl_type').value=''; });
+
+  // Pedido flow - agregar item desde selects al array editable
+  if($('pd_add_item')) $('pd_add_item').addEventListener('click', ()=>{ if(!state.currentUser) return alert('Inicie sesión'); const idx = Number($('pd_item_sel').value); if(isNaN(idx) || !state.items[idx]) return alert('Seleccione item'); const pack = $('pd_pack_sel').value || ''; const packQty = Number($('pd_pack_qty').value)||0; const kgs = Number($('pd_kilos').value); if(!kgs) return alert('Kilos obligatorios'); const it = state.items[idx]; const qty = packQty || 1; currentPedidoItems.push({codigo: it.ref || '', name:it.name, price:it.price, qty, pack, kgs}); refreshPdItems(); });
+
+  // agregar fila manual
+  if($('btnAddProducto')) $('btnAddProducto').addEventListener('click', ()=>{ if(!state.currentUser) return alert('Inicie sesión'); currentPedidoItems.push({codigo:'',name:'',price:0,qty:1,pack:'',kgs:0}); refreshPdItems(); });
+
+  if($('pd_fund')) $('pd_fund').addEventListener('change', ()=> fillPedidoPoints());
+
+  // Autocompletar por NIT en formulario pedido
+  if($('pd_nit')) $('pd_nit').addEventListener('input', function(){
+    const nitIngresado = this.value.trim();
+    if($('pd_fund_info')) $('pd_fund_info').innerText = '';
+    if(!nitIngresado) {
+      if($('pd_fund')) $('pd_fund').value = '';
+      fillPedidoPoints();
+      return;
+    }
+    // find by nit (exact) OR by string match on name
+    const f = state.foundations.find(ff => String(ff.nit) === nitIngresado || String(ff.name||'').toLowerCase().includes(nitIngresado.toLowerCase()));
+    if(f){
+      if($('pd_fund_info')) $('pd_fund_info').innerText = f.name;
+      const idx = state.foundations.findIndex(x=> x.nit === f.nit);
+      if(idx>=0 && $('pd_fund')){ $('pd_fund').value = idx; fillPedidoPoints(); }
+      // if only one point, autoselect
+      if(Array.isArray(f.points) && f.points.length === 1 && $('pd_point')) $('pd_point').value = 0;
+    } else {
+      if($('pd_fund_info')) $('pd_fund_info').innerText = 'NIT no registrado';
+    }
+  });
+
+  // Guardar nuevo pedido / editar / duplicar
+  if($('btnAddPedido')) $('btnAddPedido').addEventListener('click', ()=>{ if(!state.currentUser) return alert('Inicie sesión');
+
+    const nitVal = $('pd_nit').value.trim();
+    const fundIndex = Number($('pd_fund').value);
+    const f = state.foundations[fundIndex];
+    const pointIndex = Number($('pd_point').value);
+    const point = f ? (f.points || [])[pointIndex] : null;
+    if(!f) return alert('Seleccione fundación válida');
+    if(!point) return alert('Seleccione punto válido');
+    if(currentPedidoItems.length===0) return alert('Agregue items');
+
+    const peaje=Number($('pd_peaje').value)||0;
+    const trans=Number($('pd_trans').value)||0;
+    const subtotal=currentPedidoItems.reduce((s,it)=>s+(it.price||0)*(it.qty||1),0);
+    const total=subtotal+peaje+trans;
+
+    if(modoPedido === 'crear' || modoPedido === 'duplicar'){
+      const nuevo = {
+        id: Date.now(),
+        numero: obtenerConsecutivoPedidoPorAnio(),
+        foundation: f.name,
+        foundationNIT: f.nit,
+        point: point,
+        items: JSON.parse(JSON.stringify(currentPedidoItems)),
+        peaje, trans, subtotal, total,
+        driver: null,
+        createdAt: new Date().toISOString()
+      };
+      state.pedidos.unshift(nuevo);
+      save();
+      registrarAccion('crear_pedido',{id:nuevo.id,foundation:nuevo.foundation,total:nuevo.total});
+      alert('Pedido creado: '+nuevo.numero);
+    } else if(modoPedido === 'editar'){
+      const pedidos = state.pedidos.map(p=>{
+        if(p.id === pedidoEditandoId){
+          return {
+            ...p,
+            foundation: f.name,
+            foundationNIT: f.nit,
+            point: point,
+            items: JSON.parse(JSON.stringify(currentPedidoItems)),
+            peaje, trans, subtotal, total
+          };
+        }
+        return p;
+      });
+      state.pedidos = pedidos;
+      save();
+      registrarAccion('editar_pedido',{id:pedidoEditandoId});
+      alert('Pedido modificado.');
+    }
+
+    modoPedido = 'crear'; pedidoEditandoId = null;
+    currentPedidoItems = [];
+    refreshPdItems();
+    if($('pd_nit')) $('pd_nit').value=''; if($('pd_peaje')) $('pd_peaje').value=''; if($('pd_trans')) $('pd_trans').value='';
+    if($('formTitle')) $('formTitle').innerText = 'Crear Pedido';
+    if($('pedidoModoBadge')) $('pedidoModoBadge').innerText = '';
+    renderPedidos();
+    showSection('recibos');
+  });
+
+  // Export Pedido Imagen (lista completa)
+  if($('btnExportPedidoIMG')) document.getElementById('btnExportPedidoIMG').addEventListener('click', ()=>{
+    const node = document.getElementById('pedidosList');
+    if(!node) return;
+    html2canvas(node).then(canvas=>{
+      const link = document.createElement('a');
+      link.download = 'pedidos.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    });
+  });
+
+  // Admin users
+  function renderAdminUsers(){ const ul=$('adm_user_list'); if(!ul) return; ul.innerHTML=''; state.users.forEach((u,i)=>{ const li=document.createElement('li'); li.style.marginBottom='8px'; li.innerHTML = '<b>'+u.username+'</b> — '+u.role; if(state.currentUser && state.currentUser.role==='admin'){ const btnE=document.createElement('button'); btnE.textContent='Editar'; btnE.style.marginLeft='8px'; btnE.addEventListener('click', ()=>{ const newRole=prompt('Rol (admin/general/lector)',u.role); if(newRole){ u.role=newRole; save(); renderAdminUsers(); registrarAccion('editar_usuario',{username:u.username,role:newRole}); } }); const btnD=document.createElement('button'); btnD.textContent='Eliminar'; btnD.style.marginLeft='8px'; btnD.addEventListener('click', ()=>{ if(u.username==='admin') return alert('No eliminar admin principal'); if(!confirm('Eliminar usuario?')) return; state.users.splice(i,1); save(); renderAdminUsers(); registrarAccion('eliminar_usuario',{username:u.username}); }); li.appendChild(btnE); li.appendChild(btnD); } ul.appendChild(li); }); }
+
+  if($('adm_add_user')) $('adm_add_user').addEventListener('click', ()=>{ if(!state.currentUser || state.currentUser.role!=='admin') return alert('Solo admin'); const user=$('adm_new_user').value.trim(); const pass=$('adm_new_pass').value.trim(); const role=$('adm_new_role').value; if(!user||!pass) return alert('Complete'); if(state.users.some(x=>x.username===user)) return alert('Usuario existe'); state.users.push({username:user,pass,role,fullname:'',phone:'',email:''}); save(); renderAdminUsers(); registrarAccion('crear_usuario',{username:user,role}); alert('Usuario creado'); });
+
+  function renderAll(){ fillFundSelects(); fillItemSelect(); fillPackSelect(); fillDriverPlate(); renderFund(); renderItems(); renderPacks(); renderDrivers(); renderPlates(); renderPedidos(); renderAudit(); renderAdminUsers(); }
+
+  // abrir editar pedido
+  function abrirEditarPedido(id){
+    const pedido = state.pedidos.find(p=> p.id === id);
+    if(!pedido) return alert('Pedido no encontrado');
+    modoPedido = 'editar';
+    pedidoEditandoId = id;
+    if($('formTitle')) $('formTitle').innerText = 'Editar Pedido — ' + (pedido.numero || '');
+    if($('pedidoModoBadge')) $('pedidoModoBadge').innerText = 'Modo: editar';
+    if($('pd_nit')) $('pd_nit').value = pedido.foundationNIT || '';
+    const fIndex = state.foundations.findIndex(x=> x.nit === pedido.foundationNIT);
+    if(fIndex>=0 && $('pd_fund')){ $('pd_fund').value = fIndex; fillPedidoPoints(); }
+    if(pedido.point){
+      const points = (state.foundations[fIndex] && state.foundations[fIndex].points) || [];
+      const pIdx = points.findIndex(pp => pp.barrio === pedido.point.barrio && pp.ciudad === pedido.point.ciudad);
+      if(pIdx>=0 && $('pd_point')) $('pd_point').value = pIdx;
+    }
+    currentPedidoItems = JSON.parse(JSON.stringify(pedido.items || []));
+    refreshPdItems();
+    showSection('recibos');
+  }
+
+  // abrir duplicar pedido (no guarda)
+  function abrirDuplicarPedido(id){
+    const pedido = state.pedidos.find(p=> p.id === id);
+    if(!pedido) return alert('Pedido no encontrado');
+    modoPedido = 'duplicar';
+    pedidoEditandoId = null;
+    if($('formTitle')) $('formTitle').innerText = 'Duplicar Pedido — ' + (pedido.numero || '');
+    if($('pedidoModoBadge')) $('pedidoModoBadge').innerText = 'Modo: duplicar (no guardado)';
+    if($('pd_nit')) $('pd_nit').value = pedido.foundationNIT || '';
+    const fIndex = state.foundations.findIndex(x=> x.nit === pedido.foundationNIT);
+    if(fIndex>=0 && $('pd_fund')){ $('pd_fund').value = fIndex; fillPedidoPoints(); }
+    if(pedido.point){
+      const points = (state.foundations[fIndex] && state.foundations[fIndex].points) || [];
+      const pIdx = points.findIndex(pp => pp.barrio === pedido.point.barrio && pp.ciudad === pedido.point.ciudad);
+      if(pIdx>=0 && $('pd_point')) $('pd_point').value = pIdx;
+    }
+    currentPedidoItems = JSON.parse(JSON.stringify(pedido.items || []));
+    refreshPdItems();
+    showSection('recibos');
+  }
+
+  if(state.currentUser){ setCurrentUser(state.currentUser); } else { openLogin(); }
+
+  if($('searchPedidos')) $('searchPedidos').addEventListener('input', renderPedidos);
+
+  if($('btnExportPedidoCSV')) $('btnExportPedidoCSV').addEventListener('click', ()=>{ const rows=[['id','numero','fundacion','nit','punto','item','pack','qty','kgs','precio','peaje','trans','total','fecha']]; state.pedidos.forEach(p=> p.items.forEach(it=> rows.push([p.id,p.numero,p.foundation,p.foundationNIT,p.point?.barrio||'',it.name,it.pack,it.qty,it.kgs,it.price,p.peaje,p.trans,p.total,p.createdAt]))); const csv = rows.map(r=> r.map(c=> '"'+(''+c).replace(/"/g,'""')+'"').join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pedidos.csv'; a.click(); URL.revokeObjectURL(url); });
+
+  // --- small compatibility helpers: if some external code uses local key "Fundaciones", sync from it on load ---
+  try{
+    const extF = JSON.parse(localStorage.getItem('Fundaciones')||'null');
+    if(Array.isArray(extF) && extF.length && (!state.foundations || state.foundations.length===0)){
+      // map legacy to our state
+      state.foundations = extF.map(x=>{
+        // accept {nit,nombre,points?} or {nit,name}
+        return { nit: x.nit || x.NIT || '', name: x.name || x.nombre || x.Nombre || '', points: x.points || x.puntos || [] };
+      });
+      save();
+      fillFundSelects(); renderFund();
+    }
+  }catch(e){ /* ignore parsing errors */ }
+
 });
-
 </script>
 </body>
 </html>
