@@ -74,7 +74,8 @@ button.primary{background:var(--accent);color:#fff;padding:8px 12px;border:0;bor
 
       <div class="card">
         <h3>Añadir Punto de Envío</h3>
-        <label>Fundación</label><select id="selFund"></select>
+        <label>Fundación (por NIT)</label><input id="p_fund_nit" placeholder="Escribe NIT de la fundación...">
+        <div class="small" id="p_fund_info" style="margin-top:6px"></div>
         <label>Barrio</label><input id="p_barrio">
         <label>Localidad</label><input id="p_localidad">
         <label>Ciudad</label><input id="p_ciudad">
@@ -94,6 +95,7 @@ button.primary{background:var(--accent);color:#fff;padding:8px 12px;border:0;bor
         <h3>Listado</h3>
         <input id="searchFund" placeholder="Buscar fundaciones..." style="margin-bottom:10px">
         <div id="fundList"></div>
+      
       </div>
     </section>
 
@@ -313,10 +315,10 @@ document.addEventListener('DOMContentLoaded',function(){
 
   function registrarAccion(accion,detalle){ const rec={fecha:new Date().toISOString(),usuario: state.currentUser?state.currentUser.username:'-',accion,detalle}; state.audit.unshift(rec); save(); renderAudit(); }
 
-  // --- NUEVAS VARIABLES GLOBALES PARA PEDIDOS ---
+  // --- PEDIDOS ---
   let modoPedido = 'crear';
-  let pedidoEditandoId = null; // id (Date.now) del pedido cuando estamos editando
-  let currentPedidoItems = [];  // items mostrados en el formulario (editable)
+  let pedidoEditandoId = null;
+  let currentPedidoItems = [];
   const PREFIJO_CUSTOM = "PED";
 
   function obtenerConsecutivoPedidoPorAnio(){
@@ -367,11 +369,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   // Fillers and renderers
   function fillFundSelects(){
-    const sel = $('selFund');
-    if(sel){
-      sel.innerHTML='';
-      state.foundations.forEach((f,i)=> sel.appendChild(new Option(f.name+' ('+f.nit+')', i)));
-    }
+    // pd_fund used for showing found foundation by index; but user works primarily with NIT
     const pf = $('pd_fund');
     if(pf){
       pf.innerHTML='';
@@ -383,8 +381,10 @@ document.addEventListener('DOMContentLoaded',function(){
   function fillPedidoPoints(){
     const sel=$('pd_point'); if(!sel) return;
     sel.innerHTML='';
-    const pf = $('pd_fund');
-    const fi = pf ? Number(pf.value||0) : 0;
+    const pf = $('pd_fund';
+    ) // keep safe parsing for older browsers
+    const pfEl = $('pd_fund');
+    const fi = pfEl ? Number(pfEl.value||0) : 0;
     const f = state.foundations[fi];
     if(f && Array.isArray(f.points)){
       f.points.forEach((p,i)=> sel.appendChild(new Option(p.barrio+' ('+p.localidad+' - '+p.ciudad+')', i)));
@@ -397,15 +397,15 @@ document.addEventListener('DOMContentLoaded',function(){
 
   function fillItemSelect(){ const sel=$('pd_item_sel'); if(!sel) return; sel.innerHTML=''; state.items.forEach((it,i)=> sel.appendChild(new Option(it.name+' - $'+it.price, i))); }
   function fillPackSelect(){ const sel=$('pd_pack_sel'); if(!sel) return; sel.innerHTML=''; sel.appendChild(new Option('','')); state.packs.forEach(p=> sel.appendChild(new Option(p,p))); }
-  function fillDriverPlate(){ const sd=$('pd_driver'); const sp=$('pd_plate'); if(sd){ sd.innerHTML=''; sd.appendChild(new Option('','')); state.drivers.forEach((d,i)=> sd.appendChild(new Option(d.name,i))); } if(sp){ sp.innerHTML=''; sp.appendChild(new Option('','')); state.plates.forEach((p,i)=> sp.appendChild(new Option(p.plate,i))); } }
+  function fillDriverPlate(){ const sd=$('pd_driver'); const sp=$('pd_plate'); if(sd){ sd.innerHTML=''; state.drivers.forEach((d,i)=> sd.appendChild(new Option(d.name,i))); } if(sp){ sp.innerHTML=''; state.plates.forEach((p,i)=> sp.appendChild(new Option(p.plate,i))); } }
 
-  function renderFund(){ const box=$('fundList'); if(!box) return; box.innerHTML=''; state.foundations.forEach((f,idx)=>{ const d=document.createElement('div'); d.className='card'; d.style.marginBottom='8px'; let html = '<strong>'+f.name+'</strong><div class="small">NIT: '+f.nit+'</div>'; if(Array.isArray(f.points) && f.points.length){ html += '<div style="margin-top:8px">'; f.points.forEach((p)=>{ html += '<div class="small">'+p.barrio+' — '+p.localidad+' — '+p.ciudad+' — '+(p.encargada||'')+' — Tel:'+((p.tel1||'')+' '+(p.tel2||''))+'</div>'; }); html += '</div>'; } else { html += '<div class="small">Sin puntos</div>'; } d.innerHTML = html; box.appendChild(d); }); }
+  function renderFund(){ const box=$('fundList'); if(!box) return; box.innerHTML=''; state.foundations.forEach((f,idx)=>{ const d=document.createElement('div'); d.className='card'; d.style.marginBottom='8px'; let html = '<strong>'+f.name+'</strong><div class="small">NIT: '+f.nit+'</div>'; if(Array.isArray(f.points) && f.points.length){ html += '<div style="margin-top:8px">'; f.points.forEach((p)=>{ html += '<div class="small">'+p.barrio+' — '+p.localidad+' — '+p.ciudad+' — '+(p.encargada||'')+' — '+(p.tel1||'')+'</div>'; }); html += '</div>'; } else { html += '<div class="small">Sin puntos</div>'; } d.innerHTML = html; box.appendChild(d); }); }
 
   function renderItems(){ const tbody = $('itemsTable') ? $('itemsTable').querySelector('tbody') : null; if(!tbody) return; tbody.innerHTML=''; state.items.forEach((it,i)=>{ const tr=document.createElement('tr'); tr.innerHTML = '<td>'+it.ref+'</td><td>'+it.name+'</td><td>'+(it.desc||'')+'</td><td>$'+(it.price||0)+'</td><td><button data-i="'+i+'" class="delItem">Eliminar</button></td>'; tbody.appendChild(tr); }); document.querySelectorAll('.delItem').forEach(btn=> btn.addEventListener('click', function(){ if(!state.currentUser || state.currentUser.role!=='admin'){ return alert('Solo admin puede eliminar'); } const idx=Number(this.dataset.i); state.items.splice(idx,1); save(); renderItems(); registrarAccion('eliminar_item',{index:idx}); })); }
 
   function renderPacks(){ const ul=$('packList'); if(!ul) return; ul.innerHTML=''; state.packs.forEach((p,i)=>{ const li=document.createElement('li'); li.textContent = p + ' '; const del=document.createElement('button'); del.textContent='Eliminar'; del.style.marginLeft='8px'; del.addEventListener('click', ()=>{ if(!state.currentUser || state.currentUser.role!=='admin') return alert('Solo admin'); state.packs.splice(i,1); save(); renderPacks(); }); li.appendChild(del); ul.appendChild(li); }); }
 
-  function renderDrivers(){ const ul=$('driversList'); if(!ul) return; ul.innerHTML=''; state.drivers.forEach((d,i)=>{ const li=document.createElement('li'); li.textContent = d.name + ' — ' + (d.document||'') + ' — ' + (d.phone||''); ul.appendChild(li); }); }
+  function renderDrivers(){ const ul=$('driversList'); if(!ul) return; ul.innerHTML=''; state.drivers.forEach((d,i)=>{ const li=document.createElement('li'); li.textContent = d.name + ' — ' + (d.document||''); ul.appendChild(li); }); }
   function renderPlates(){ const ul=$('platesList'); if(!ul) return; ul.innerHTML=''; state.plates.forEach((p,i)=>{ const li=document.createElement('li'); li.textContent = p.plate + ' ('+(p.type||'')+')'; ul.appendChild(li); }); }
 
   function refreshPdItems(){ const ul=$('pd_items_list'); if(!ul) return; ul.innerHTML=''; currentPedidoItems.forEach((it,idx)=>{ const li=document.createElement('li'); li.style.marginBottom='6px'; li.innerHTML = `<div style="display:flex;gap:8px;align-items:center">
@@ -426,7 +426,7 @@ document.addEventListener('DOMContentLoaded',function(){
     ul.appendChild(li);
   }); }
 
-  function renderPedidos(){ const ul=$('pedidosList'); if(!ul) return; ul.innerHTML=''; const q=$('searchPedidos')?$('searchPedidos').value.trim().toLowerCase():''; state.pedidos.forEach((p,idx)=>{ if(q && !(p.id+''+p.numero+''+p.foundation+''+(p.foundationNIT||'')).toLowerCase().includes(q)) return; const li=document.createElement('li'); li.style.marginBottom='8px'; const created = new Date(p.createdAt).toLocaleString(); li.innerHTML = '<div style=\"display:flex;justify-content:space-between;align-items:center\"><div><strong>'+ (p.numero || '') + ' — ' + (p.id) + '</strong> — '+p.foundation+' — $'+(p.total||0) + '</div><div class=\"small\">'+created+'</div></div>'; const info = document.createElement('div'); info.className='small'; info.style.marginTop='6px'; info.innerHTML = 'Llegada: '+(p.horaLlegada||'—')+' | Salida: '+(p.horaSalida||'—')+' | Conductor: '+(p.driver?.name||'—')+' | Placa: '+(p.plate?.plate || '-') ; li.appendChild(info);
+  function renderPedidos(){ const ul=$('pedidosList'); if(!ul) return; ul.innerHTML=''; const q=$('searchPedidos')?$('searchPedidos').value.trim().toLowerCase():''; state.pedidos.forEach((p,idx)=>{ if(q && !(p.id+''+p.numero+''+p.foundation+''+(p.foundationNIT||'')).toLowerCase().includes(q)) return; const li=document.createElement('li'); li.style.marginBottom='8px'; const created = new Date(p.createdAt).toLocaleString(); li.innerHTML = '<div style=\"display:flex;justify-content:space-between;align-items:center\"><div><strong>'+ (p.numero || '') + ' — ' + (p.id) + '</strong> — '+p.foundation+' — $'+(p.total||0) + '</div><div class=\"small\">'+created+'</div></div>'; const info = document.createElement('div'); info.className='small'; info.style.marginTop='6px'; info.innerHTML = 'Llegada: '+(p.horaLlegada||'—')+' | Salida: '+(p.horaSalida||'—')+' | Conductor: '+(p.driver?.name||'—'); li.appendChild(info);
 
     const row = document.createElement('div'); row.className='actions-row'; row.style.marginTop='8px';
 
@@ -441,7 +441,7 @@ document.addEventListener('DOMContentLoaded',function(){
     ul.appendChild(li);
   }); }
 
-  // Build export: includes driver and plate now using pedido.driver and pedido.plate saved values
+  // Export generator (includes conductor y placa)
   function exportPedidoAsImageAndPDF(pedido){
     const wrap = document.createElement('div');
     wrap.style.width = '1123px';
@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded',function(){
     wrap.style.color = '#0f172a';
 
     const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between'; header.style.alignItems='center';
-    const left = document.createElement('div'); left.innerHTML = '<h2 style="margin:0">Pedido '+(pedido.numero||'')+'</h2><div class="small">Creado: '+new Date(pedido.createdAt).toLocaleString()+'</div>';
+    const left = document.createElement('div'); left.innerHTML = '<h2 style="margin:0">Pedido '+(pedido.numero||pedido.id)+'</h2><div class="small">Creado: '+new Date(pedido.createdAt).toLocaleString()+'</div>';
     header.appendChild(left);
     wrap.appendChild(header);
 
@@ -463,9 +463,9 @@ document.addEventListener('DOMContentLoaded',function(){
     wrap.appendChild(info);
 
     const transport = document.createElement('div'); transport.style.marginTop='12px';
-    const driverName = pedido.driver?.name || '—';
-    const plateName = pedido.plate?.plate || pedido.driver?.plate || '—';
-    transport.innerHTML = '<b>Conductor:</b> '+driverName+' &nbsp; <b>Placa:</b> '+plateName+'<br><b>Peaje:</b> $'+(pedido.peaje||0)+' &nbsp; <b>Transporte:</b> $'+(pedido.trans||0);
+    const conductorName = pedido.driver?.name || (pedido.driverName||'--');
+    const placaName = pedido.plate?.plate || (pedido.plateName||'--');
+    transport.innerHTML = '<b>Conductor:</b> '+conductorName+' &nbsp; <b>Placa:</b> '+placaName+'<br><b>Peaje:</b> $'+(pedido.peaje||0)+' &nbsp; <b>Transporte:</b> $'+(pedido.trans||0);
     wrap.appendChild(transport);
 
     const tbl = document.createElement('table'); tbl.style.width='100%'; tbl.style.borderCollapse='collapse'; tbl.style.marginTop='12px';
@@ -484,7 +484,9 @@ document.addEventListener('DOMContentLoaded',function(){
     tbl.appendChild(tb);
     wrap.appendChild(tbl);
 
-    const sumDiv = document.createElement('div'); sumDiv.style.marginTop='12px'; sumDiv.style.textAlign='right'; const subtotal = (pedido.items||[]).reduce((s,it)=>s + ((it.price||0)*(it.qty||1)),0); sumDiv.innerHTML = '<div><b>Subtotal:</b> $'+subtotal+'</div><div><b>Peaje:</b> $'+(pedido.peaje||0)+'</div><div><b>Transporte:</b> $'+(pedido.trans||0)+'</div><div style="font-size:18px;margin-top:6px"><b>Total:</b> $'+(pedido.total||0)+'</div>';
+    const sumDiv = document.createElement('div'); sumDiv.style.marginTop='12px'; sumDiv.style.textAlign='right';
+    const subtotal = (pedido.items||[]).reduce((s,it)=>s + ((it.price||0)*(it.qty||1)),0);
+    sumDiv.innerHTML = '<div><b>Subtotal:</b> $'+subtotal+'</div><div><b>Peaje:</b> $'+(pedido.peaje||0)+'</div><div><b>Transporte:</b> $'+(pedido.trans||0)+'</div><div style="font-size:18px;margin-top:6px"><b>Total:</b> $'+(pedido.total||0)+'</div>';
     wrap.appendChild(sumDiv);
 
     document.body.appendChild(wrap);
@@ -492,7 +494,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
     html2canvas(wrap, {scale:2}).then(canvas=>{
       const link = document.createElement('a'); link.download = (pedido.numero || pedido.id) + '.png'; link.href = canvas.toDataURL('image/png'); link.click();
-      const dataUrl = canvas.toDataURL('image/png'); const win = window.open(''); if(win){ win.document.write('<html><head><title>'+pedido.numero+'</title></head><body style="margin:0"><img src="'+dataUrl+'" style="width:100%"></body></html>'); win.document.close(); }
+      const dataUrl = canvas.toDataURL('image/png'); const win = window.open(''); if(win){ win.document.write('<html><head><title>'+ (pedido.numero||pedido.id) +'</title></head><body style="margin:0"><img src="'+dataUrl+'" style="width:100%"></body></html>'); win.document.close(); }
       setTimeout(()=>{ document.body.removeChild(wrap); },500);
       registrarAccion('export_pedido_image',{id:pedido.id});
     }).catch(err=>{ alert('Error al generar imagen: '+err); document.body.removeChild(wrap); });
@@ -521,7 +523,8 @@ document.addEventListener('DOMContentLoaded',function(){
           const nit = String(r[0]||'').trim();
           const name = String(r[1]||'').trim();
           if(!nit||!name) return;
-          if(!state.foundations.some(f=>String(f.nit)===nit || String(f.name).toLowerCase()===name.toLowerCase())){
+          // block duplicates by NIT or same name
+          if(!state.foundations.some(f=> String(f.nit) === nit || (String(f.name||'').toLowerCase() === name.toLowerCase()))){
             state.foundations.push({nit,name,points:[]});
           }
         });
@@ -559,7 +562,7 @@ document.addEventListener('DOMContentLoaded',function(){
     reader.readAsArrayBuffer(file);
   });
 
-  // Handlers
+  // Handlers: Crear fundación (autocompleta nombre por NIT)
   if($('btnFundCreate')) $('btnFundCreate').addEventListener('click', ()=>{ 
     if(!state.currentUser) return alert('Inicie sesión'); 
     const nitEl = $('f_nit'), nameEl = $('f_name');
@@ -576,12 +579,12 @@ document.addEventListener('DOMContentLoaded',function(){
     if(nitEl) nitEl.value=''; if(nameEl) nameEl.value='';
   });
 
-  // auto-complete name when typing NIT in create fund form (safe)
+  // Autocompletar nombre en formulario crear fundación por NIT (no borra si no encuentra)
   function autoCompletarNombreFundacionPorNIT(){
     const nitEl = $('f_nit'); const nameEl = $('f_name');
     if(!nitEl || !nameEl) return;
     const nitIngresado = nitEl.value.trim();
-    if(!nitIngresado){ /* don't erase if user typed */ return; }
+    if(!nitIngresado) return;
     const found = state.foundations.find(ff => String(ff.nit) === nitIngresado);
     if(found){
       nameEl.value = found.name || found.nombre || '';
@@ -589,11 +592,22 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   if($('f_nit')) $('f_nit').addEventListener('input', autoCompletarNombreFundacionPorNIT);
 
+  // Add point: use p_fund_nit input (user writes NIT to pick foundation)
+  if($('p_fund_nit')) $('p_fund_nit').addEventListener('input', function(){
+    const nit = (this.value||'').trim();
+    const info = $('p_fund_info');
+    if(!nit){ if(info) info.innerText=''; return; }
+    const f = state.foundations.find(ff => String(ff.nit) === nit);
+    if(f){ if(info) info.innerText = f.name; } else { if(info) info.innerText = 'NIT no encontrado'; }
+  });
+
   if($('btnPointCreate')) $('btnPointCreate').addEventListener('click', ()=>{ 
     if(!state.currentUser) return alert('Inicie sesión'); 
-    const sel = $('selFund'); const fi = sel? Number(sel.value): -1;
-    const f = state.foundations[fi];
-    if(!f) return alert('Seleccione fundación'); 
+    const nit = $('p_fund_nit')? $('p_fund_nit').value.trim() : '';
+    if(!nit) return alert('Ingrese NIT de la fundación');
+    const fIndex = state.foundations.findIndex(x=> String(x.nit) === nit);
+    if(fIndex<0) return alert('Fundación no encontrada por NIT');
+    const f = state.foundations[fIndex];
     const barrio = ($('p_barrio')?$('p_barrio').value.trim():''); 
     const localidad = ($('p_localidad')?$('p_localidad').value.trim():''); 
     const ciudad = ($('p_ciudad')?$('p_ciudad').value.trim():''); 
@@ -602,7 +616,6 @@ document.addEventListener('DOMContentLoaded',function(){
     const encargada = ($('p_encargada')?$('p_encargada').value.trim():'');
     if(!barrio || !ciudad) return alert('Barrio y Ciudad requeridos');
 
-    // block duplicate points by barrio+ciudad for same foundation (case-insensitive)
     f.points = f.points || [];
     const dupPoint = f.points.some(p=> (String(p.barrio||'').toLowerCase()===barrio.toLowerCase()) && (String(p.ciudad||'').toLowerCase()===ciudad.toLowerCase()));
     if(dupPoint) return alert('Ya existe un punto con el mismo barrio y ciudad para esta fundación.');
@@ -610,7 +623,7 @@ document.addEventListener('DOMContentLoaded',function(){
     const p = {barrio,localidad,ciudad,tel1,tel2,encargada};
     f.points.push(p);
     save(); renderFund(); fillFundSelects(); registrarAccion('crear_punto',{fund:f.name,barrio:p.barrio});
-    if($('p_barrio')) $('p_barrio').value=''; if($('p_localidad')) $('p_localidad').value=''; if($('p_ciudad')) $('p_ciudad').value='';
+    if($('p_barrio')) $('p_barrio').value=''; if($('p_localidad')) $('p_localidad').value=''; if($('p_ciudad')) $('p_ciudad').value=''; if($('p_fund_nit')) $('p_fund_nit').value=''; if($('p_fund_info')) $('p_fund_info').innerText='';
   });
 
   if($('btnCreateItem')) $('btnCreateItem').addEventListener('click', ()=>{ if(!state.currentUser) return alert('Inicie sesión'); const ref=$('item_ref').value.trim(); const name=$('item_name').value.trim(); if(!name) return alert('Nombre requerido'); const desc=$('item_desc').value.trim(); const price=Number($('item_price').value)||0; state.items.push({ref,name,desc,price}); save(); renderItems(); fillItemSelect(); registrarAccion('crear_item',{name}); if($('item_ref')) $('item_ref').value=''; if($('item_name')) $('item_name').value=''; if($('item_desc')) $('item_desc').value=''; if($('item_price')) $('item_price').value=''; });
@@ -629,7 +642,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   if($('pd_fund')) $('pd_fund').addEventListener('change', ()=> fillPedidoPoints());
 
-  // Autocompletar por NIT en formulario pedido (y seleccionar fundacion + autoseleccionar punto si solo hay 1)
+  // Autocompletar por NIT en formulario pedido (busca por NIT exacto)
   if($('pd_nit')) $('pd_nit').addEventListener('input', function(){
     const nitIngresado = this.value.trim();
     if($('pd_fund_info')) $('pd_fund_info').innerText = '';
@@ -638,8 +651,8 @@ document.addEventListener('DOMContentLoaded',function(){
       fillPedidoPoints();
       return;
     }
-    // find by nit (exact) OR by string match on name
-    const f = state.foundations.find(ff => String(ff.nit) === nitIngresado || String(ff.name||'').toLowerCase().includes(nitIngresado.toLowerCase()));
+    // find by nit (exact)
+    const f = state.foundations.find(ff => String(ff.nit) === nitIngresado);
     if(f){
       if($('pd_fund_info')) $('pd_fund_info').innerText = f.name;
       const idx = state.foundations.findIndex(x=> x.nit === f.nit);
@@ -651,7 +664,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   });
 
-  // Guardar nuevo pedido / editar / duplicar
+  // Guardar nuevo pedido / editar / duplicar (AHORA guarda conductor y placa)
   if($('btnAddPedido')) $('btnAddPedido').addEventListener('click', ()=>{ if(!state.currentUser) return alert('Inicie sesión');
 
     const nitVal = $('pd_nit').value.trim();
@@ -663,16 +676,16 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!point) return alert('Seleccione punto válido');
     if(currentPedidoItems.length===0) return alert('Agregue items');
 
-    // read selected driver and plate indexes and store actual objects (so export can use them)
-    const driverIndex = $('pd_driver') ? Number($('pd_driver').value) : -1;
-    const plateIndex = $('pd_plate') ? Number($('pd_plate').value) : -1;
-    const selectedDriver = (driverIndex >= 0 && state.drivers[driverIndex]) ? state.drivers[driverIndex] : null;
-    const selectedPlate = (plateIndex >= 0 && state.plates[plateIndex]) ? state.plates[plateIndex] : null;
-
     const peaje=Number($('pd_peaje').value)||0;
     const trans=Number($('pd_trans').value)||0;
     const subtotal=currentPedidoItems.reduce((s,it)=>s+(it.price||0)*(it.qty||1),0);
     const total=subtotal+peaje+trans;
+
+    // read driver and plate selections
+    const driverIndex = $('pd_driver') ? Number($('pd_driver').value) : -1;
+    const plateIndex = $('pd_plate') ? Number($('pd_plate').value) : -1;
+    const selectedDriver = (driverIndex>=0 && state.drivers[driverIndex]) ? state.drivers[driverIndex] : null;
+    const selectedPlate = (plateIndex>=0 && state.plates[plateIndex]) ? state.plates[plateIndex] : null;
 
     if(modoPedido === 'crear' || modoPedido === 'duplicar'){
       const nuevo = {
@@ -683,8 +696,8 @@ document.addEventListener('DOMContentLoaded',function(){
         point: point,
         items: JSON.parse(JSON.stringify(currentPedidoItems)),
         peaje, trans, subtotal, total,
-        driver: selectedDriver ? JSON.parse(JSON.stringify(selectedDriver)) : null,
-        plate: selectedPlate ? JSON.parse(JSON.stringify(selectedPlate)) : (selectedDriver && selectedDriver.plate ? {plate: selectedDriver.plate} : null),
+        driver: selectedDriver,     // guarda objeto conductor si existe
+        plate: selectedPlate,       // guarda objeto placa si existe
         createdAt: new Date().toISOString()
       };
       state.pedidos.unshift(nuevo);
@@ -701,8 +714,8 @@ document.addEventListener('DOMContentLoaded',function(){
             point: point,
             items: JSON.parse(JSON.stringify(currentPedidoItems)),
             peaje, trans, subtotal, total,
-            driver: selectedDriver ? JSON.parse(JSON.stringify(selectedDriver)) : null,
-            plate: selectedPlate ? JSON.parse(JSON.stringify(selectedPlate)) : (selectedDriver && selectedDriver.plate ? {plate: selectedDriver.plate} : null)
+            driver: selectedDriver,
+            plate: selectedPlate
           };
         }
         return p;
@@ -758,16 +771,15 @@ document.addEventListener('DOMContentLoaded',function(){
       const pIdx = points.findIndex(pp => pp.barrio === pedido.point.barrio && pp.ciudad === pedido.point.ciudad);
       if(pIdx>=0 && $('pd_point')) $('pd_point').value = pIdx;
     }
-    // set driver and plate selects if exist
-    if($('pd_driver')){
-      const driverIdx = pedido.driver ? state.drivers.findIndex(d => d.name === pedido.driver.name || String(d.document) === String(pedido.driver.document)) : -1;
-      $('pd_driver').value = driverIdx >= 0 ? driverIdx : '';
+    // set driver and plate selects if available
+    if(pedido.driver && $('pd_driver')){
+      const di = state.drivers.findIndex(d=> d.name === pedido.driver.name && (d.document||'') === (pedido.driver.document||''));
+      if(di>=0) $('pd_driver').value = di;
     }
-    if($('pd_plate')){
-      const plateIdx = pedido.plate ? state.plates.findIndex(pl => pl.plate === pedido.plate.plate) : -1;
-      $('pd_plate').value = plateIdx >= 0 ? plateIdx : '';
+    if(pedido.plate && $('pd_plate')){
+      const pi = state.plates.findIndex(pl=> pl.plate === pedido.plate.plate);
+      if(pi>=0) $('pd_plate').value = pi;
     }
-
     currentPedidoItems = JSON.parse(JSON.stringify(pedido.items || []));
     refreshPdItems();
     showSection('recibos');
@@ -789,15 +801,7 @@ document.addEventListener('DOMContentLoaded',function(){
       const pIdx = points.findIndex(pp => pp.barrio === pedido.point.barrio && pp.ciudad === pedido.point.ciudad);
       if(pIdx>=0 && $('pd_point')) $('pd_point').value = pIdx;
     }
-    // copy items to form (editable) and set driver/plate selects as defaults (but not saved until user saves)
-    if($('pd_driver')){
-      const driverIdx = pedido.driver ? state.drivers.findIndex(d => d.name === pedido.driver.name || String(d.document) === String(pedido.driver.document)) : -1;
-      $('pd_driver').value = driverIdx >= 0 ? driverIdx : '';
-    }
-    if($('pd_plate')){
-      const plateIdx = pedido.plate ? state.plates.findIndex(pl => pl.plate === pedido.plate.plate) : -1;
-      $('pd_plate').value = plateIdx >= 0 ? plateIdx : '';
-    }
+    // copy items to form (editable)
     currentPedidoItems = JSON.parse(JSON.stringify(pedido.items || []));
     refreshPdItems();
     showSection('recibos');
@@ -807,13 +811,12 @@ document.addEventListener('DOMContentLoaded',function(){
 
   if($('searchPedidos')) $('searchPedidos').addEventListener('input', renderPedidos);
 
-  if($('btnExportPedidoCSV')) $('btnExportPedidoCSV').addEventListener('click', ()=>{ const rows=[['id','numero','fundacion','nit','punto','item','pack','qty','kgs','precio','peaje','trans','total','fecha','conductor','placa']]; state.pedidos.forEach(p=> p.items.forEach(it=> rows.push([p.id,p.numero,p.foundation,p.foundationNIT,p.point?.barrio||'',it.name,it.pack,it.qty,it.kgs,it.price,p.peaje,p.trans,p.total,p.createdAt,p.driver?.name||'',p.plate?.plate||'']))); const csv = rows.map(r=> r.map(c=> '"'+(''+c).replace(/"/g,'""')+'"').join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pedidos.csv'; a.click(); URL.revokeObjectURL(url); });
+  if($('btnExportPedidoCSV')) $('btnExportPedidoCSV').addEventListener('click', ()=>{ const rows=[['id','numero','fundacion','nit','punto','item','pack','qty','kgs','precio','peaje','trans','total','fecha']]; state.pedidos.forEach(p=> p.items.forEach(it=> rows.push([p.id,p.numero,p.foundation,p.foundationNIT,p.point?.barrio||'',it.name,it.pack,it.qty,it.kgs,it.price,p.peaje,p.trans,p.total,p.createdAt]))); const csv = rows.map(r=> r.map(c=> '"'+(''+c).replace(/"/g,'""')+'"').join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pedidos.csv'; a.click(); URL.revokeObjectURL(url); });
 
   // --- small compatibility helpers: if some external code uses local key "Fundaciones", sync from it on load ---
   try{
     const extF = JSON.parse(localStorage.getItem('Fundaciones')||'null');
     if(Array.isArray(extF) && extF.length && (!state.foundations || state.foundations.length===0)){
-      // map legacy to our state
       state.foundations = extF.map(x=>{
         return { nit: x.nit || x.NIT || '', name: x.name || x.nombre || x.Nombre || '', points: x.points || x.puntos || [] };
       });
